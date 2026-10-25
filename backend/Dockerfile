@@ -16,7 +16,7 @@ ARG VITE_API_URL=
 RUN bun run build
 
 
-FROM python:3.14
+FROM python:3.14-slim
 
 ENV PYTHONUNBUFFERED=1
 
@@ -38,12 +38,12 @@ WORKDIR /app/
 # Ref: https://docs.astral.sh/uv/guides/integration/docker/#using-the-environment
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Install dependencies
+# Install dependencies dependecies only (--no-dev keeps test and lint tools out of the image)
 # Ref: https://docs.astral.sh/uv/guides/integration/docker/#intermediate-layers
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --no-install-workspace --package app
+    uv sync --no-dev --frozen --no-install-workspace --package app
 
 COPY ./backend/scripts /app/backend/scripts
 
@@ -58,7 +58,7 @@ COPY --from=frontend-build /app/backend/app/frontend /app/backend/app/frontend
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --package app
+    uv sync --no-dev --frozen --package app
 
 WORKDIR /app/backend/
 
