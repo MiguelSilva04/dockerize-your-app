@@ -60,6 +60,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --no-dev --frozen --package app
 
+RUN groupadd --system --gid 10001 appuser \
+ && useradd --system --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin appuser
+
+USER 10001:10001
+
 WORKDIR /app/backend/
 
 CMD ["fastapi", "run", "--workers", "4"]
