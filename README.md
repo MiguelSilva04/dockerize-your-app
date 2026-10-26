@@ -19,6 +19,8 @@ Each change was measured before and after. Raw numbers and method are in [`docs/
 
 The original image is 2.11 GB on disk and the current one is 439 MB. Changes 1 and 2 share one commit but were measured in separate builds.
 
+Idle memory is about 490 to 500 MiB for both the original and the current image. The difference between them (about 2% at 6 minutes) is smaller than the spread between samples of the same image, so no memory benefit is claimed.
+
 ## Tags
 
 - `baseline`: the repository before any containerization change. The Dockerfile and `compose.yml` are the upstream ones.
