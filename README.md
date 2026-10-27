@@ -16,8 +16,9 @@ Each change was measured before and after. Raw numbers and method are in [`docs/
 | 2 | `FROM python:3.14-slim` | Image 1.88 GB to 439 MB on disk. Same Python 3.14.9. Login through the API still returns 200. |
 | 3 | Healthcheck uses Python's `urllib` instead of `curl` | `curl` is not in the slim image, and the old check failed 5 times in a row. The new one passes, and exits with code 1 when nothing listens on the port. |
 | 4 | Non-root user (`uid` 10001) | Image size unchanged (439 MB, the new layer is 41 kB). The image's `User` is the number `10001:10001`. Migrations, healthcheck and login verified as the new user, and writing to the app code is denied. |
+| 5 | Multi-stage build for the backend | `uv` stays in the build stage. 442 MB to 362 MB on disk and 106 MB to 82.8 MB compressed, measured against a one-stage build on the same base. Migrations, healthcheck and login verified. |
 
-The original image is 2.11 GB on disk and the current one is 439 MB. Changes 1 and 2 share one commit but were measured in separate builds.
+The original image is 2.11 GB on disk and the current one is 362 MB. Changes 1 and 2 share one commit but were measured in separate builds. The `python:3.14-slim` tag moved from Python 3.14.9 to 3.14.10 between changes 4 and 5, so change 5 is compared against a one-stage image rebuilt on the new base.
 
 Idle memory ranged from 476 to 505 MiB across all runs, for both the original and the current image. The difference between them (about 2% at 6 minutes) is smaller than the spread between samples of the same image, so no memory benefit is claimed.
 
@@ -26,8 +27,9 @@ Idle memory ranged from 476 to 505 MiB across all runs, for both the original an
 - `baseline`: the repository before any containerization change. The Dockerfile and `compose.yml` are the upstream ones.
 - `slim-base`: after changes 1 to 3.
 - `non-root-user`: after change 4.
+- `multi-stage`: after change 5.
 
-Compare: [`baseline` to `slim-base`](https://github.com/MiguelSilva04/dockerize-your-app/compare/baseline...slim-base), and [`slim-base` to `non-root-user`](https://github.com/MiguelSilva04/dockerize-your-app/compare/slim-base...non-root-user).
+Compare: [`baseline` to `slim-base`](https://github.com/MiguelSilva04/dockerize-your-app/compare/baseline...slim-base), [`slim-base` to `non-root-user`](https://github.com/MiguelSilva04/dockerize-your-app/compare/slim-base...non-root-user), and [`non-root-user` to `multi-stage`](https://github.com/MiguelSilva04/dockerize-your-app/compare/non-root-user...multi-stage).
 
 ## Notes
 
