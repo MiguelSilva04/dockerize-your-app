@@ -33,6 +33,41 @@ Idle memory ranged from 476 to 505 MiB across all runs, for both the original an
 
 Compare: [`baseline` to `slim-base`](https://github.com/MiguelSilva04/dockerize-your-app/compare/baseline...slim-base), [`slim-base` to `non-root-user`](https://github.com/MiguelSilva04/dockerize-your-app/compare/slim-base...non-root-user), [`non-root-user` to `multi-stage`](https://github.com/MiguelSilva04/dockerize-your-app/compare/non-root-user...multi-stage), and [`multi-stage` to `dockerignore`](https://github.com/MiguelSilva04/dockerize-your-app/compare/multi-stage...dockerignore).
 
+## How to build and run
+
+Needs Docker with Compose. Tested on Docker Desktop for Windows with PowerShell.
+
+The base `compose.yml` refuses to start with the template's default secrets, so set real ones first. They live only in your shell session and are never written to a file.
+
+PowerShell:
+
+```powershell
+$env:SECRET_KEY = python -c "import secrets; print(secrets.token_urlsafe(32))"
+$env:POSTGRES_PASSWORD = python -c "import secrets; print(secrets.token_urlsafe(24))"
+$env:FIRST_SUPERUSER_PASSWORD = python -c "import secrets; print(secrets.token_urlsafe(16))"
+```
+
+Bash (the same Python one-liner, not tested here):
+
+```bash
+export SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
+export POSTGRES_PASSWORD=$(python3 -c "import secrets; print(secrets.token_urlsafe(24))")
+export FIRST_SUPERUSER_PASSWORD=$(python3 -c "import secrets; print(secrets.token_urlsafe(16))")
+```
+
+Then, from the repo root:
+
+docker compose -f compose.yml up -d db
+docker compose -f compose.yml run --rm backend bash scripts/prestart.sh
+docker compose -f compose.yml up -d backend
+docker compose -f compose.yml ps
+
+The first `run` builds the image, applies the migrations and creates the first user. After about a minute the backend should show `healthy`. The base compose file publishes no ports, so the checks run inside the container. A real login through the API:
+
+docker compose -f compose.yml exec backend python -c “import urllib.request, urllib.parse, os; d=urllib.parse.urlencode({‘username’: os.environ[‘FIRST_SUPERUSER’], ‘password’: os.environ[‘FIRST_SUPERUSER_PASSWORD’]}).encode(); print(urllib.request.urlopen(‘http://localhost:8000/api/v1/login/access-token’, d, timeout=5).status)”
+
+It prints `200`. To stop and remove the containers and the database volume: `docker compose -f compose.yml down -v`.
+
 ## Notes
 
 - `.env` holds upstream's development defaults (`changethis`). Not for production. The base `compose.yml` refuses to start with them, so real values have to come from the environment.
