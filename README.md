@@ -35,7 +35,7 @@ Compare: [`baseline` to `slim-base`](https://github.com/MiguelSilva04/dockerize-
 
 ## How to build and run
 
-Needs Docker with Compose. Tested on Docker Desktop for Windows with PowerShell.
+Needs Docker with Compose, and Python 3 to generate secrets (any other way of generating random strings works). Tested on Docker Desktop for Windows with PowerShell.
 
 The base `compose.yml` refuses to start with the template's default secrets, so set real ones first. They live only in your shell session and are never written to a file.
 
@@ -57,16 +57,24 @@ export FIRST_SUPERUSER_PASSWORD=$(python3 -c "import secrets; print(secrets.toke
 
 Then, from the repo root:
 
+```
 docker compose -f compose.yml up -d db
 docker compose -f compose.yml run --rm backend bash scripts/prestart.sh
 docker compose -f compose.yml up -d backend
 docker compose -f compose.yml ps
+```
 
 The first `run` builds the image, applies the migrations and creates the first user. After about a minute the backend should show `healthy`. The base compose file publishes no ports, so the checks run inside the container. A real login through the API:
 
-docker compose -f compose.yml exec backend python -c “import urllib.request, urllib.parse, os; d=urllib.parse.urlencode({‘username’: os.environ[‘FIRST_SUPERUSER’], ‘password’: os.environ[‘FIRST_SUPERUSER_PASSWORD’]}).encode(); print(urllib.request.urlopen(‘http://localhost:8000/api/v1/login/access-token’, d, timeout=5).status)”
+```
+docker compose -f compose.yml exec backend python -c "import urllib.request, urllib.parse, os; d=urllib.parse.urlencode({'username': os.environ['FIRST_SUPERUSER'], 'password': os.environ['FIRST_SUPERUSER_PASSWORD']}).encode(); print(urllib.request.urlopen('http://localhost:8000/api/v1/login/access-token', d, timeout=5).status)"
+```
 
-It prints `200`. To stop and remove the containers and the database volume: `docker compose -f compose.yml down -v`.
+It prints `200`. To stop and remove the containers and the database volume:
+
+```
+docker compose -f compose.yml down -v
+```
 
 ## Notes
 

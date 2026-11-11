@@ -4,7 +4,7 @@ Regras de trabalho: medir o original antes de mexer em qualquer coisa. Uma alter
 
 Condições da medição: imagem original construída a partir do commit `9715fef`, Docker Desktop no Windows, stack arrancada só com `compose.yml` (sem o override) e com segredos próprios da sessão. A tag `baseline` (`c34e874`) tem o mesmo Dockerfile, e a diferença é só a pasta `.github` removida. Imagens guardadas: `backend:baseline` (original), `backend:nodev` (alteração 1), `backend:slim` (alteração 2, que inclui a 1), `backend:nonroot` (alteração 4, que inclui as anteriores), `backend:nonroot-newbase` (a mesma imagem de uma fase, reconstruída na base nova) e `backend:multistage` (alteração 5). As alterações 3 e 6 não têm imagem própria: a 3 é só no `compose.yml` e a 6 só no `.dockerignore`.
 
-A etiqueta `python:3.14-slim` avançou entre a alteração 4 e a 5, da 3.14.9 (digest `35caba83...`) para a 3.14.10 (digest `82abc9f5...`). Voltou a avançar durante a alteração 6 (digest `9aaa4740...`, versão do Python por confirmar). Por isso a alteração 5 compara-se com a `nonroot-newbase`, e a 6 compara-se com duas builds na mesma base.
+A etiqueta `python:3.14-slim` avançou entre a alteração 4 e a 5, da 3.14.9 (digest `35caba83...`) para a 3.14.10 (digest `82abc9f5...`). Voltou a avançar durante a alteração 6 (digest `9aaa4740...`, versão do Python 3.14.10, igual à anterior). Por isso a alteração 5 compara-se com a `nonroot-newbase`, e a 6 compara-se com duas builds na mesma base.
 
 Protocolo de CPU e memória: stack nova, 6 minutos depois de o backend arrancar (confirmado com `docker compose ps`) e três amostras de `docker stats --no-stream` com 30 s de intervalo. As medições anteriores ao protocolo estão marcadas como tal e não são comparáveis entre si.
 
@@ -23,7 +23,7 @@ Só entram aqui as que o Dockerfile, o compose e o `.dockerignore` alteram diret
 | Imagem | Tamanho da imagem | `docker image ls backend` | 2,11 GB em disco, 541 MB comprimidos | 1,88 GB, 478 MB (menos 0,23 GB e 63 MB) | 439 MB, 106 MB (face ao original, menos 1,67 GB e 435 MB, cerca de 79% e 80%) | igual (a imagem não muda) | 439 MB, 106 MB (igual à alt. 2 neste arredondamento) | 362 MB, 82,8 MB. Referência na mesma base (`nonroot-newbase`, 3.14.10, uma fase): 442 MB, 106 MB. Menos 80 MB (18%) e 23 MB (22%). Face ao original, menos cerca de 83% em disco e 85% comprimidos | igual à de antes do `.dockerignore`: mesmo hash de configuração (`0b77753e...`). Tamanho em disco não medido na base nova |
 | Imagem | Camadas | `docker history` | Base python:3.14 cerca de 1,2 GB, binário uv 53,2 MB, dependências 319 MB, app e frontend cerca de 1,4 MB | Dependências 319 para 142 MB. Segundo `uv sync` de 135 kB para 1,79 MB. Resto igual | Base Debian slim cerca de 135 MB (87,7 + 4,92 + 42,1) em vez de cerca de 1,2 GB. Resto igual à alt. 1 | igual | Uma camada nova, `groupadd` e `useradd`, com 41 kB. `USER` com 0 B. Resto igual | Sem a camada do `uv` (53,2 MB). O ambiente passa numa camada de 141 MB (antes 142 MB e 1,79 MB). Base cerca de 137 MB (87,7 + 7,31 + 42,1; a base nova pesa mais 2,4 MB). Código, frontend e utilizador como antes | igual |
 | Imagem | Pacotes Python instalados | `uv pip list` | 77 | 63 (menos 14) | 63 | igual | 63 (camada das dependências em cache) | não verificado (o `uv` já não está na imagem para os listar) | não verificado |
-| Imagem | Versão do Python | `python --version` | 3.14.9 | 3.14.9 | 3.14.9 (confirmado) | igual | 3.14.9 (mesma base) | 3.14.10 (a etiqueta avançou) | por confirmar (a base voltou a avançar) |
+| Imagem | Versão do Python | `python --version` | 3.14.9 | 3.14.9 | 3.14.9 (confirmado) | igual | 3.14.9 (mesma base) | 3.14.10 (a etiqueta avançou) | 3.14.10 (o digest da base mudou, a versão ficou igual) |
 | Imagem | `uv` presente na imagem final | `command -v uv` | sim (53,2 MB) | sim | sim | sim | sim | não (`sem uv`) | não |
 | Imagem | Tempo de build limpo | `docker build` | 159,3 s (inclui download das bases) | 13,4 s (bases e frontend em cache; não comparável) | 20,5 s (inclui download da base slim; não comparável) | n/a | n/a | 16,7 s (cache parcial; não comparável) | n/a |
 | Imagem | Tempo de build com cache | `docker build`, sem alterações | 2,3 s | por medir | por medir | n/a | 2,9 s (as 9 primeiras etapas em cache; só o `useradd` e o `WORKDIR` foram refeitos) | por medir | 0,9 s (31 etapas, todas `CACHED`) |
@@ -58,7 +58,7 @@ As alterações 1 e 2 estão no mesmo commit, mas foram medidas em builds separa
 - Listar os pacotes Python da imagem multi-stage por outro meio, já que o `uv` não está lá.
 - Contar as vulnerabilidades da imagem base com uma ferramenta, registando o nome e a data.
 - Demonstrar o multi-stage com um pacote sem wheel, que precisa de compilador no `builder` e só da biblioteca de execução na fase final.
-- Testar se o `frontend/.dockerignore` também é inerte, e fixar a base (`python:3.14-slim` avançou três vezes em poucos dias).
+- Testar se o `frontend/.dockerignore` também é inerte, e fixar a base (`python:3.14-slim` mudou de digest duas veze em poucos dias).
 - Melhorias ao compose e push para um registry.
 
 ## Como ler cada valor
