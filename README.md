@@ -17,8 +17,9 @@ Each change was measured before and after. Raw numbers and method are in [`docs/
 | 3 | Healthcheck uses Python's `urllib` instead of `curl` | `curl` is not in the slim image, and the old check failed 5 times in a row. The new one passes, and exits with code 1 when nothing listens on the port. |
 | 4 | Non-root user (`uid` 10001) | Image size unchanged (439 MB, the new layer is 41 kB). The image's `User` is the number `10001:10001`. Migrations, healthcheck and login verified as the new user, and writing to the app code is denied. |
 | 5 | Multi-stage build for the backend | `uv` stays in the build stage. 442 MB to 362 MB on disk and 106 MB to 82.8 MB compressed, measured against a one-stage build on the same base. Migrations, healthcheck and login verified. |
+| 6 | Root `.dockerignore` extended | Build context 2568 kB to 1484 kB (42% smaller). The image is identical: both builds report the same config digest. `backend/.dockerignore` is not read, because the build context is the repo root. |
 
-The original image is 2.11 GB on disk and the current one is 362 MB. Changes 1 and 2 share one commit but were measured in separate builds. The `python:3.14-slim` tag moved from Python 3.14.9 to 3.14.10 between changes 4 and 5, so change 5 is compared against a one-stage image rebuilt on the new base.
+The original image is 2.11 GB on disk and the current one is 362 MB. Changes 1 and 2 share one commit but were measured in separate builds. The `python:3.14-slim` tag moved from Python 3.14.9 to 3.14.10 between changes 4 and 5, so change 5 is compared against a one-stage image rebuilt on the new base. It moved again while change 6 was being measured, which is why change 6 is checked by comparing two builds on the same base.
 
 Idle memory ranged from 476 to 505 MiB across all runs, for both the original and the current image. The difference between them (about 2% at 6 minutes) is smaller than the spread between samples of the same image, so no memory benefit is claimed.
 
@@ -28,11 +29,13 @@ Idle memory ranged from 476 to 505 MiB across all runs, for both the original an
 - `slim-base`: after changes 1 to 3.
 - `non-root-user`: after change 4.
 - `multi-stage`: after change 5.
+- `dockerignore`: after change 6.
 
-Compare: [`baseline` to `slim-base`](https://github.com/MiguelSilva04/dockerize-your-app/compare/baseline...slim-base), [`slim-base` to `non-root-user`](https://github.com/MiguelSilva04/dockerize-your-app/compare/slim-base...non-root-user), and [`non-root-user` to `multi-stage`](https://github.com/MiguelSilva04/dockerize-your-app/compare/non-root-user...multi-stage).
+Compare: [`baseline` to `slim-base`](https://github.com/MiguelSilva04/dockerize-your-app/compare/baseline...slim-base), [`slim-base` to `non-root-user`](https://github.com/MiguelSilva04/dockerize-your-app/compare/slim-base...non-root-user), [`non-root-user` to `multi-stage`](https://github.com/MiguelSilva04/dockerize-your-app/compare/non-root-user...multi-stage), and [`multi-stage` to `dockerignore`](https://github.com/MiguelSilva04/dockerize-your-app/compare/multi-stage...dockerignore).
 
 ## Notes
 
 - `.env` holds upstream's development defaults (`changethis`). Not for production. The base `compose.yml` refuses to start with them, so real values have to come from the environment.
+- The repo contains three `.dockerignore` files. Only the one at the root is read, because the build context is the repo root. The one in `backend/` was shown to be ignored; the one in `frontend/` was not tested.
 - The upstream `.claude` and `.agents` folders were left out of this copy.
 - The upstream `.github` folder (workflows and Dependabot config) was removed, because it targets the upstream repository.

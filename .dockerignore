@@ -8,3 +8,14 @@ frontend/node_modules
 frontend/playwright-report
 frontend/test-results
 node_modules
+img
+docs
+packages
+scripts
+hooks
+.vscode
+release-notes.md
+development.md
+deployment.md
+deployment-docker-compose.md
+.env
