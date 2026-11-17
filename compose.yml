@@ -14,6 +14,7 @@ services:
 
   proxy:
     image: traefik:v3.7
+    restart: unless-stopped
     volumes:
       # Add Docker as a mounted volume, so that Traefik can read the labels of other services
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -31,6 +32,7 @@ services:
 
   db:
     image: postgres:18
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d app"]
       interval: 10s
@@ -72,6 +74,7 @@ services:
 
   backend:
     image: backend:latest
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
