@@ -46,7 +46,8 @@ services:
       - POSTGRES_DB=app
 
   adminer:
-    image: adminer
+    image: adminer:6.3.0
+    profiles: [tools]
     depends_on:
       - db
     environment:
