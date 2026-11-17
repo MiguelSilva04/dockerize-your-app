@@ -86,6 +86,7 @@ services:
 
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/utils/health-check/', timeout=4)"]
+      #start_period: 30s
       interval: 10s
       timeout: 5s
       retries: 5
