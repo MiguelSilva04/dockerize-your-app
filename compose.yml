@@ -1,3 +1,15 @@
+x-backend-env: &backend-env
+  PROJECT_NAME: ${PROJECT_NAME:?Variable not set}
+  SECRET_KEY: ${SECRET_KEY:?Variable not set}
+  FIRST_SUPERUSER: ${FIRST_SUPERUSER:?Variable not set}
+  FIRST_SUPERUSER_PASSWORD: ${FIRST_SUPERUSER_PASSWORD:?Variable not set}
+  SMTP_HOST: ${SMTP_HOST}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  EMAILS_FROM_EMAIL: ${EMAILS_FROM_EMAIL}
+  DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?Variable not set}@db:5432/app
+  SENTRY_DSN: ${SENTRY_DSN:-}
+
 services:
 
   proxy:
@@ -46,23 +58,27 @@ services:
       # Define the port inside of the Docker service to use
       - traefik.http.services.adminer.loadbalancer.server.port=8080
 
+  prestart:
+    image: backend:latest
+    build: &backend-build
+      context: .
+      dockerfile: backend/Dockerfile
+    command: bash scripts/prestart.sh
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment: *backend-env
+
   backend:
     image: backend:latest
     depends_on:
       db:
         condition: service_healthy
         restart: true
-    environment:
-      PROJECT_NAME: ${PROJECT_NAME:?Variable not set}
-      SECRET_KEY: ${SECRET_KEY:?Variable not set}
-      FIRST_SUPERUSER: ${FIRST_SUPERUSER:?Variable not set}
-      FIRST_SUPERUSER_PASSWORD: ${FIRST_SUPERUSER_PASSWORD:?Variable not set}
-      SMTP_HOST: ${SMTP_HOST}
-      SMTP_USER: ${SMTP_USER:-}
-      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      EMAILS_FROM_EMAIL: ${EMAILS_FROM_EMAIL}
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?Variable not set}@db:5432/app
-      SENTRY_DSN: ${SENTRY_DSN:-}
+      prestart:
+        condition: service_completed_successfully
+    environment: *backend-env
 
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/utils/health-check/', timeout=4)"]
@@ -70,9 +86,7 @@ services:
       timeout: 5s
       retries: 5
 
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
+    build: *backend-build
     labels:
       # Enable Traefik for this service
       - traefik.enable=true
