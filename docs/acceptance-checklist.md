@@ -38,9 +38,9 @@ Decided with the client. Each one needs a command, an expected result and who ru
 | # | Check | Command | Result |
 | --- | --- | --- | --- |
 | 1 | The backend becomes healthy | `docker compose -f compose.yml ps` | `healthy` |
-| 2 | Migrations run from an empty database | `docker compose -f compose.yml run --rm backend bash scripts/prestart.sh` | Five migrations, first user created |
+| 2 | Migrations run by themselves from an empty database | `docker compose -f compose.yml up -d backend`, then `docker compose -f compose.yml ps -a` and `docker compose -f compose.yml logs prestart` | `prestart` is `Exited (0)`, five migrations, first user created |
 | 3 | A real login works | The login command in the README | `200` |
-| 4 | The code is importable from a neutral folder | `docker run --rm -w / backend:multistage python -c "import app; print(app.__file__)"` | `/app/backend/app/__init__.py` |
+| 4 | The code is importable from a neutral folder | `docker run --rm -w / backend:latest python -c "import app; print(app.__file__)"` | `/app/backend/app/__init__.py` |
 | 5 | The process is not root | `docker compose -f compose.yml exec backend id` | `uid=10001(appuser)` |
 | 6 | The code cannot be changed | `docker compose -f compose.yml exec backend sh -c "touch /app/backend/app/teste"` | `Permission denied` |
 | 7 | `uv` is not in the final image | `docker compose -f compose.yml exec backend sh -c "command -v uv \|\| echo sem uv"` | `sem uv` |

@@ -8,7 +8,7 @@ Based on [fastapi/full-stack-fastapi-template](https://github.com/fastapi/full-s
 
 ## Changes
 
-Each change was measured before and after. Raw numbers and method are in [`docs/medicoes.md`](docs/medicoes.md), which is in Portuguese for now.
+Each change was measured before and after. Raw numbers and method are in [`docs/medicoes.md`](docs/medicoes.md).
 
 | # | Change | Result |
 | --- | --- | --- |
