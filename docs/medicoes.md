@@ -4,11 +4,13 @@ Working rules: measure the original before touching anything. One change at a ti
 
 Measurement conditions: original image built from commit `9715fef`, Docker Desktop on Windows, stack started with `compose.yml` only (without the override) and with the session's own secrets. The `baseline` tag (`c34e874`) has the same Dockerfile, and the only difference is the removed `.github` folder. Saved images: `backend:baseline` (original), `backend:nodev` (change 1), `backend:slim` (change 2, which includes 1), `backend:nonroot` (change 4, which includes the previous ones), `backend:nonroot-newbase` (the same one-stage image, rebuilt on the new base) and `backend:multistage` (change 5). Changes 3 and 6 have no image of their own: 3 is only in `compose.yml` and 6 only in `.dockerignore`.
 
-The `python:3.14-slim` tag moved between change 4 and change 5, from 3.14.9 (digest `35caba83...`) to 3.14.10 (digest `82abc9f5...`). It moved again during change 6 (digest `9aaa4740...`, Python version 3.14.10, same as the previous one). That is why change 5 is compared against `nonroot-newbase`, and change 6 is compared using two builds on the same base.
+The `python:3.14-slim` tag moved between change 4 and change 5, from 3.14.9 (digest `35caba83...`) to 3.14.10 (digest `82abc9f5...`). It moved again during change 6 (digest `9aaa4740...`, Python version 3.14.10, same as the previous one). By change 8 it pointed to a fourth digest, `22eafb37...` (Python 3.14.10, `slim-trixie`, built 2026-11-24 04:52 UTC), which is the one pinned. That is why change 5 is compared against `nonroot-newbase`, and change 6 is compared using two builds on the same base.
 
 CPU and memory protocol: fresh stack, 6 minutes after the backend started (confirmed with `docker compose ps`) and three `docker stats --no-stream` samples 30 s apart. Measurements taken before the protocol are marked as such and are not comparable with each other.
 
 Change 7 (compose): starting state at commit `82a2321`, image `backend:latest` with ID `119fffb035ea` (the multi-stage one), session secrets, stack started with only `up -d backend` on an empty database (`down -v --remove-orphans` before) and always with `-f compose.yml`. The `compose.yml` had no service that ran the migrations. The final `compose.yml` is at commit `afca1c8`. Two attempts to measure the "before" were invalid and were repeated: the first in a terminal without the secrets (compose took `changethis` from `.env` and the backend exited with `Exited (1)`, because the app refuses the default `SECRET_KEY`), the second without `-f compose.yml` (the `compose.override.yml` was loaded, with `fastapi dev` and published ports).
+
+Changes 8 to 11 and the checks: Docker Desktop on Windows, PowerShell, stack always started with `-f compose.yml` and with the session's own secrets (per-session variables, never written to a file). Each change is its own commit: change 8 `2608cce` (Python) and `68dbbcf` (bun), change 9 `c0056da`, change 10 `c42d0b0`, change 11 `eacaebb`. Image IDs shown by `docker image ls` change when the BuildKit attestation manifest changes, even if the config digest is the same, so IDs are not used here as proof of identical content.
 
 ## Initial hypothesis
 
@@ -18,7 +20,7 @@ Measured result: most of the original image's size comes from the `python:3.14` 
 
 ## Metrics
 
-Only metrics that the Dockerfile, the compose file and the `.dockerignore` change directly are listed here. The runtime ones are there to confirm that nothing got worse. The columns are cumulative, and the column for change 6 is the current state.
+Only metrics that the Dockerfile, the compose file and the `.dockerignore` change directly are listed here. The runtime ones are there to confirm that nothing got worse. The columns are cumulative up to change 6. Changes 7 to 11 are in the change log and in the checks after it.
 
 | Group | Metric | Tool | Original | Change 1: `--no-dev` | Change 2: slim base | Change 3: healthcheck in Python | Change 4: non-root user | Change 5: multi-stage | Change 6: `.dockerignore` |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -50,23 +52,66 @@ Only metrics that the Dockerfile, the compose file and the `.dockerignore` chang
 | 5 | Multi-stage build for the backend: a `builder` stage with `uv` and the two `uv sync --no-dev` calls, and a final `runtime` stage with only the environment (`/app/.venv`), the code, the compiled frontend, the user and the `CMD` | About 400 MB (my prediction). Derived value: about 386 MB (439 MB minus the 53.2 MB of `uv`). Risk: the app fails to start because something is missing from the final stage | 362 MB and 82.8 MB, against 442 MB and 106 MB for the same one-stage image on the new base (80 MB and 23 MB less). The layers explain about 56 MB (`uv` and about 2.8 MB of the `.venv`), and the remaining 24 MB in the "on disk" column are unexplained. Both predictions came out short. Two builds failed along the way: without the code in the `builder` (`Distribution not found at: file:///app/backend`) and without the `pyproject.toml` (`/app/backend does not appear to be a Python project`). The `builder` needs the code in `app` and the `pyproject.toml`, and does not need the `scripts` or the `alembic.ini`. The base moved from 3.14.9 to 3.14.10 between change 4 and change 5, so the reference is the one-stage image on the same base. Stack from scratch: 5 migrations, `healthy`, `sem uv`, `appuser`, writing to the code denied and login 200 |
 | 6 | Root `.dockerignore` with eleven new entries: `img`, `docs`, `packages`, `scripts`, `hooks`, `.vscode`, `release-notes.md`, `development.md`, `deployment.md`, `deployment-docker-compose.md` and `.env` | The context drops by about 1.08 MB (prediction: about 1490 kB in `du`), and the image does not change | Context from 2568 kB to 1484 kB (42% less). Prediction: 1490 kB. Identical image: the two builds, with and without the change, give the same config hash (`0b77753e...`), with all 31 steps `CACHED`, on the same base (digest `9aaa4740...`). `backend/.dockerignore` is inert: a `zz-marker.pyc`, which it excludes, got into the context. `frontend/.dockerignore` was not tested. Proof of the effect: with the old `.dockerignore` (216 B), a `COPY . /app` brings `.env` into the context (count 1, 990.83 kB context), and a `cat /app/.env` in an image built that way shows the template's example values; with the new one (345 B), it does not (count 0, 11.86 kB context). In this project the Dockerfile only copies specific paths, so `.env` never reached the image, and the gain is a safety margin for a `COPY . .`. The `transferring context` kB are BuildKit's incremental transfer and cannot be compared with the `du` ones |
 | 7 | Compose: a one-shot `prestart` service, and the backend depending on it with `service_completed_successfully`. Also `restart: unless-stopped` on `db`, `backend` and `proxy`, `start_period` on the backend healthcheck, and `adminer` with a pinned tag behind the `tools` profile | Today, with `up -d backend` on an empty database: `ps -a` shows the backend `Up (healthy)` and the login returns an HTTP 500 error, because the users table is queried and does not exist, and the database error is not handled. After the change: `prestart` ends with `Exited (0)`, the backend becomes `healthy` and the login returns 200, without any command by hand. Prediction for `start_period`, written before measuring: with a 60 s startup, without it the backend goes `unhealthy`, and with it, it does not. The predictions for `RestartCount` and for the `adminer` profile were not recorded before measuring | **Before** (`up -d backend`, empty database): backend `Up (healthy)`, login with `HTTP Error 500` and, in the logs, `relation "user" does not exist`. **After:** `prestart` with `Exited (0)` (5 migrations and first user created), backend `healthy` and login 200 with a single `up -d backend`. Second run, without `down -v`: `prestart` runs again (`Exited (0)` seconds ago), `alembic upgrade head` applies no migration, and `initial_data.py` repeats the message `Initial data created`, but it does not duplicate the user: `select count(*) from "user"` gives 1 after the first `up` and 1 after the second, and the login returns 200 both times. **Failing `prestart`** (temporary `fail.yml` with `exit 1`): `Exited (1)`, backend in `Created` (it never started) and `up` ends with `service "prestart" didn't complete successfully: exit 1`. **Restart:** with `docker compose stop backend`, the backend stays `Exited (0)`, seen 6 s later. With a temporary `crash.yml` (the process exits with an error after 5 s), `RestartCount` 10 and `Restarting (1)` about 2 minutes later. Two tests that proved nothing: `docker compose kill -s SIGKILL backend` left the backend `Exited (137)` with `RestartCount` 0 (hypothesis, not confirmed: Docker counts the `kill` as a manual stop), and an `os.kill(1, 15)` done from inside did not terminate the backend (cause to be found). **`start_period`** (temporary `slow.yml`, 60 s startup, state read every 10 s after the `up`): without it, `starting` 5 times, `unhealthy` 2 times and `healthy`. With `start_period: 30s`, `starting` 7 times and `healthy`, never going through `unhealthy`. **Adminer:** `config --services` does not list it without `--profile tools` and lists it with it. The tag is `6.3.0`, and `pull` of that tag works |
+| 8 | Pin the base images by digest: `python:3.14-slim@sha256:22eafb37...` in the `builder` and `runtime` stages and `oven/bun:1@sha256:3aa040e5...` in `frontend-build` (the full digests are in `backend/Dockerfile`). The digest is the multi-architecture index, not a per-platform one. `uv` was already pinned to `0.9.26` | The image shrinks slightly (my prediction, recorded before building). A pinned digest could be a security problem if the base is never updated, which is a maintenance obligation | Image 362 MB to 359 MB on disk, 82.8 MB to 82.5 MB compressed, so the prediction held. The cause of the 3 MB is not isolated: the base had moved to a fourth digest, and `oven/bun:1` may also have moved. After the Python pin: Python 3.14.10, backend `healthy`, login 200. After the bun pin the build reported every step `CACHED` (1.6 s), which is a cache result and not a build time. The image ID went from `119fffb035ea` to `85ecc0f0defb` and then to `6d1e93a1d77c` while the config digest stayed the same (`df1f6155...`), probably because of the attestation manifest (not tested). Pinning stops automatic security patches: the digests must be reviewed from time to time, and the scan date in the checks below matters |
+| 9 | Backend: `security_opt: no-new-privileges:true` | No prediction recorded here. The check is `NoNewPrivs` in `/proc/1/status` | `NoNewPrivs: 1`, measured before and after the change. Backend `healthy`, login 200. This does not show what it protects against in this image: the process already ran as non-root and no escalation was tried. It is a guard against a future setuid binary or file capability (reasoning, not tested) |
+| 10 | Backend: `cap_drop: [ALL]` | No prediction recorded here. The check is `CapBnd` in `/proc/1/status` | `CapBnd: 0000000000000000`. The non-root process already had effective, permitted, inheritable and ambient capabilities at 0, so what the process holds did not change. What changed is the bounding set. Verified together with change 11 in the clean clone (`healthy`, login 200) |
+| 11 | Backend: `read_only: true` | No prediction recorded here. The check is writing to the root filesystem | `touch /tmp/x` fails with `Read-only file system`. Backend `healthy` and login 200, with no `tmpfs` added. Tested only for startup, the healthcheck and the login. Other endpoints that might write to disk were not tested |
 
 Changes 1 and 2 are in the same commit, but were measured in separate builds. Change 5 was measured against a one-stage image built on the same base.
+
+## Checks
+
+Checks done on the result. They are not changes to the repo, so they have no number or tag.
+
+### Vulnerability scan (Trivy)
+
+Tool: Trivy 0.76.2 run as a container (`aquasec/trivy:0.76.2`) against the local images, with `--severity HIGH,CRITICAL --scanners vuln`. Vulnerability database `UpdatedAt` 2026-11-24 13:06:50 UTC. The counts are package and CVE pairs (one package with three CVEs counts three) and are only valid for that database date.
+
+Prediction, written before scanning: 2 HIGH and 1 CRITICAL for the original image, and 4 HIGH and 2 CRITICAL for the current one. Measured: 852 findings for the original and 61 for the current one. The prediction put more findings on the current image than on the original, and it has far fewer.
+
+| Image | OS packages | Python packages | Total |
+| --- | --- | --- | --- |
+| Original (`backend:baseline`, Debian 13.7) | 844 (825 HIGH, 19 CRITICAL) | 8 (7 HIGH, 1 CRITICAL) | 852 |
+| Current (Debian 13.8, slim) | 53 (53 HIGH) | 8 (7 HIGH, 1 CRITICAL) | 61 |
+
+Notes:
+
+- The two images are on different Debian point releases, so this compares the image as it was originally built against the image today. It does not isolate one change.
+- The 61 are all kept in the table. 5 of the 8 Python findings in the current image name versions that are not installed in the image's environment (`msgpack`, `setuptools` 70.3.0 and `urllib3` 2.7.0, while the environment has `urllib3` 2.8.0). They probably come from the BuildKit SBOM attestation, which was not confirmed (Trivy printed a "Third-party SBOM" warning).
+- The findings that are really in the environment are `certifi` 2026.6.17 (CRITICAL, GHSA-6q48-6c7w-9gw2, fixed in 2026.10.18) and `dnspython` 2.8.0 (2 HIGH). They come from upstream's dependencies and were not changed here.
+- The bases are pinned (change 8), so these counts will not go down by themselves.
+
+### Registry
+
+- A local AWS emulator image (`aws-emulator:latest`) refused `docker push` with `error from registry: the operation is unsupported`. The proof of concept was done on a real registry instead.
+- Push to a private Amazon ECR repository in a personal AWS account, region us-west-1, with `aws ecr get-login-password`. 14 layers pushed, 82,494,554 bytes stored (`describe-images`). The digest `sha256:6d1e93a1...` is the same as the local image ID and as the one reported after pulling the image back. The repository was then deleted (`delete-repository --force`). The account ID is not recorded anywhere in this repo.
+- Not measured: pull time (the "Pull time" row of the metrics table is still `n/a`).
+
+### Clean clone
+
+Fresh clone of the repo at `eacaebb` (change 11), in a new folder, with the session secrets set.
+
+- First attempt with the secrets not set in that terminal: `prestart` exited with 1, and its log shows the validation error `The value of SECRET_KEY is "changethis"`. The stack refuses to start with the default secrets, as the README says.
+- `docker compose -f compose.yml up -d backend` with the image already on the machine did not build anything, so it did not test the clone's Dockerfile. It was repeated after a build.
+- `docker compose -f compose.yml build --no-cache --progress=plain backend`: 88.7 s, no errors. The base images were already downloaded, and BuildKit cache mounts may have been reused (not checked), so this is not a measurement from an empty machine. No prediction recorded. The config digest of this build (`061117d8...`) is not the same as the one before (`df1f6155...`). The layers were not compared, so nothing is claimed about the content being identical.
+- Then `down -v --remove-orphans` and `up -d backend` on an empty database: `db` `healthy`, `prestart` `Exited (0)`, backend `healthy` after about 20 s. `python --version` gives 3.14.10, login returns 200, `NoNewPrivs: 1`, `CapBnd: 0000000000000000`, and `touch /tmp/x` fails with `Read-only file system`.
 
 ## Open items
 
 - Explain the difference between the sum of the layers and the on-disk size in `docker image ls`, which shows up in every image, and the 4 kB difference in `COPY ./backend/app` between the one-stage image (168 kB) and the multi-stage one (164 kB).
 - Confirm the cause of the saving in change 1, by measuring the size of the binaries in `/app/.venv/bin` in the original image.
 - Identify the 11th process that shows up in the samples at 33 minutes (at 6 minutes there are 10).
-- Measure CPU and memory of the multi-stage image with the protocol, and the cached build time for the everyday case (change one app file and rebuild).
+- Measure CPU and memory of the current image with the protocol, and the cached build time for the everyday case (change one app file and rebuild). Memory was not measured after changes 8 to 11.
 - List the Python packages of the multi-stage image by another means, since `uv` is not there.
-- Count the base image's vulnerabilities with a tool, recording its name and the date.
+- Decide what to do with the Python findings in the scan (`certifi`, `dnspython`), which come from upstream's dependencies. Confirm whether the other 5 come from the BuildKit SBOM, for example by scanning an image built without attestations.
+- Find out which of the two bases (Python or bun) caused the 3 MB drop in change 8.
+- Review the pinned digests from time to time. There is no automated update.
 - Demonstrate the multi-stage build with a package that has no wheel, which needs a compiler in the `builder` and only the runtime library in the final stage.
-- Test whether `frontend/.dockerignore` is also inert, and pin the base (`python:3.14-slim` changed digest twice in a few days).
+- Test whether `frontend/.dockerignore` is also inert.
 - Evaluate other files that the build does not use and that the `.dockerignore` still does not exclude (for example `backend/tests`, which showed up in the context list), without measuring yet.
-- Compose, after change 7: backend hardening (`no-new-privileges`, `cap_drop`, `read_only`), each one tested. `SMTP_HOST` and `EMAILS_FROM_EMAIL` still have no default value.
+- Compose: `SMTP_HOST` and `EMAILS_FROM_EMAIL` still have no default value. `read_only` was only tested for startup, the healthcheck and the login.
 - Confirm the `docker compose kill` hypothesis (manual stop) and work out why the SIGTERM sent from inside to process 1 did not terminate the backend.
-- Push to a registry.
+- Measure the pull time from the registry.
 
 ## How to read each value
 
