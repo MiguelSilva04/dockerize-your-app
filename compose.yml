@@ -80,6 +80,7 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    read_only: true
     depends_on:
       db:
         condition: service_healthy
