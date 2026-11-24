@@ -16,7 +16,7 @@ ARG VITE_API_URL=
 RUN bun run build
 
 
-FROM python:3.14-slim AS builder
+FROM python:3.14-slim@sha256:22eafb370920ad8b429e0aec3fff433e0669968519f5d60469d83729c138b28b AS builder
 
 # Install uv
 # Ref: https://docs.astral.sh/uv/guides/integration/docker/#installing-uv
@@ -50,7 +50,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --no-dev --frozen --package app
 
-FROM python:3.14-slim AS runtime
+FROM python:3.14-slim@sha256:22eafb370920ad8b429e0aec3fff433e0669968519f5d60469d83729c138b28b AS runtime
 
 ENV PYTHONUNBUFFERED=1
 
